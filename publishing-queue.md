@@ -18,19 +18,19 @@ Priority order: high-intent commercial articles first, then education, then DIY,
 | # | Title | File | Status | Sent | Approved | Published |
 |---|---|---|---|---|---|---|
 | 1 | What is a Radiant Barrier? | pillar-2-radiant-barrier-education/what-is-a-radiant-barrier.md | in-review | 2026-05-12 | | |
-| 2 | Is a Radiant Barrier Worth It in North Carolina? | pillar-2-radiant-barrier-education/is-radiant-barrier-worth-it-north-carolina.md | pending | | | |
-| 3 | Radiant Barrier Cost in North Carolina (2026) | pillar-4-proof-results/radiant-barrier-cost-north-carolina-2026.md | pending | | | |
-| 4 | How Much Can a Radiant Barrier Lower Your Energy Bill? | pillar-2-radiant-barrier-education/how-much-can-radiant-barrier-lower-energy-bill.md | pending | | | |
-| 5 | Does Radiant Barrier Actually Work? | pillar-2-radiant-barrier-education/does-radiant-barrier-actually-work.md | pending | | | |
-| 6 | Why Is My Upstairs So Hot? | pillar-1-attic-heat/why-is-my-upstairs-so-hot.md | pending | | | |
-| 7 | Why Is My Electric Bill So High in Summer? | pillar-1-attic-heat/why-is-my-electric-bill-so-high-in-summer.md | pending | | | |
-| 8 | Why Does My AC Run All Day? | pillar-1-attic-heat/why-does-my-ac-run-all-day.md | pending | | | |
-| 9 | Radiant Barrier Before and After | pillar-4-proof-results/radiant-barrier-before-and-after.md | pending | | | |
-| 10 | Radiant Barrier Payback Period | pillar-4-proof-results/radiant-barrier-payback-period.md | pending | | | |
-| 11 | Radiant Barrier Reviews in North Carolina | pillar-4-proof-results/radiant-barrier-reviews-north-carolina.md | pending | | | |
-| 12 | How to Install Radiant Barrier in Your Attic | pillar-3-diy-installation/how-to-install-radiant-barrier-attic.md | pending | | | |
-| 13 | Radiant Barrier and HVAC Ducts | pillar-3-diy-installation/radiant-barrier-hvac-ducts.md | pending | | | |
-| 14 | Radiant Barrier: Rafters vs. Attic Floor | pillar-3-diy-installation/radiant-barrier-rafters-vs-attic-floor.md | pending | | | |
+| 2 | Is a Radiant Barrier Worth It in North Carolina? | pillar-2-radiant-barrier-education/is-radiant-barrier-worth-it-north-carolina.md | pending | | |published |
+| 3 | Radiant Barrier Cost in North Carolina (2026) | pillar-4-proof-results/radiant-barrier-cost-north-carolina-2026.md | pending | | |published |
+| 4 | How Much Can a Radiant Barrier Lower Your Energy Bill? | pillar-2-radiant-barrier-education/how-much-can-radiant-barrier-lower-energy-bill.md | pending | | |published |
+| 5 | Does Radiant Barrier Actually Work? | pillar-2-radiant-barrier-education/does-radiant-barrier-actually-work.md | pending | | |published |
+| 6 | Why Is My Upstairs So Hot? | pillar-1-attic-heat/why-is-my-upstairs-so-hot.md | pending | | | published|
+| 7 | Why Is My Electric Bill So High in Summer? | pillar-1-attic-heat/why-is-my-electric-bill-so-high-in-summer.md | pending | | |published |
+| 8 | Why Does My AC Run All Day? | pillar-1-attic-heat/why-does-my-ac-run-all-day.md | pending | | |published |
+| 9 | Radiant Barrier Before and After | pillar-4-proof-results/radiant-barrier-before-and-after.md | pending | | | published|
+| 10 | Radiant Barrier Payback Period | pillar-4-proof-results/radiant-barrier-payback-period.md | pending | | | published|
+| 11 | Radiant Barrier Reviews in North Carolina | pillar-4-proof-results/radiant-barrier-reviews-north-carolina.md | pending | | | published|
+| 12 | How to Install Radiant Barrier in Your Attic | pillar-3-diy-installation/how-to-install-radiant-barrier-attic.md | pending | | |published |
+| 13 | Radiant Barrier and HVAC Ducts | pillar-3-diy-installation/radiant-barrier-hvac-ducts.md | pending | | |published |
+| 14 | Radiant Barrier: Rafters vs. Attic Floor | pillar-3-diy-installation/radiant-barrier-rafters-vs-attic-floor.md | pending | | | published|
 | 15 | Perforated vs. Non-Perforated Radiant Barrier | pillar-3-diy-installation/perforated-vs-non-perforated-radiant-barrier.md | pending | | | |
 | 16 | How Much Radiant Barrier Do I Need? | pillar-3-diy-installation/how-much-radiant-barrier-do-i-need.md | pending | | | |
 | 17 | Common Radiant Barrier Installation Mistakes | pillar-3-diy-installation/radiant-barrier-installation-mistakes.md | pending | | | |
