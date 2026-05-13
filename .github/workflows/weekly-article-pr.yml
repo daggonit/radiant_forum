@@ -1,0 +1,139 @@
+name: Weekly Article PR
+
+on:
+  schedule:
+    - cron: '3 12 * * 2'  # Every Tuesday 8:03 AM Eastern (12:03 UTC during EDT)
+  workflow_dispatch:       # Manual trigger via Actions tab
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-article-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Find next article and open PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            // Read publishing queue
+            const queuePath = 'publishing-queue.md';
+            const queueContent = fs.readFileSync(queuePath, 'utf8');
+            const lines = queueContent.split('\n');
+
+            // Find first pending row
+            let pendingIdx = -1;
+            for (let i = 0; i < lines.length; i++) {
+              if (/\|\s*pending\s*\|/.test(lines[i])) {
+                pendingIdx = i;
+                break;
+              }
+            }
+
+            if (pendingIdx === -1) {
+              core.notice('All 24 articles have been queued. Nothing to do.');
+              return;
+            }
+
+            // Parse row: | # | Title | File | Status | Sent | Approved | Published |
+            const cols = lines[pendingIdx].split('|').map(s => s.trim());
+            const num   = cols[1];
+            const title = cols[2];
+            const file  = cols[3];
+
+            if (!title || !file) {
+              core.setFailed(`Could not parse queue row: ${lines[pendingIdx]}`);
+              return;
+            }
+
+            console.log(`Next article: #${num} — ${title}`);
+
+            // Build slug for branch name
+            const slug = title
+              .toLowerCase()
+              .replace(/[^a-z0-9 ]/g, '')
+              .trim()
+              .replace(/\s+/g, '-')
+              .slice(0, 55);
+            const branch = `article/${slug}`;
+
+            // Get main branch SHA
+            const { data: mainRef } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/main'
+            });
+
+            // Create branch
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/heads/${branch}`,
+              sha: mainRef.object.sha
+            });
+
+            // Update queue: pending → in-review + today's date
+            const today = new Date().toISOString().slice(0, 10);
+            lines[pendingIdx] = lines[pendingIdx]
+              .replace(/\|\s*pending\s*\|/, '| in-review |')
+              .replace(/\| in-review \|\s*\|/, `| in-review | ${today} |`);
+
+            // Commit updated queue to the new branch
+            const { data: existingFile } = await github.rest.repos.getContent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: queuePath,
+              ref: 'main'
+            });
+
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: queuePath,
+              message: `Queue: article #${num} sent for review`,
+              content: Buffer.from(lines.join('\n')).toString('base64'),
+              sha: existingFile.sha,
+              branch
+            });
+
+            // Build article URL for the PR body
+            const articleUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/${file}`;
+
+            // Open PR
+            const prBody = [
+              `## Article #${num}: ${title}`,
+              '',
+              `📄 **[Click here to read the full article](${articleUrl})** — GitHub renders the markdown with full formatting (headings, bold, links, tables).`,
+              '',
+              '**To approve:** Merge this PR',
+              '**To request changes:** Leave a comment on this PR',
+              '',
+              '### Quick checklist',
+              '- [ ] Headline is clear and accurate',
+              '- [ ] No factual errors',
+              '- [ ] Phone number correct: (919) 971-9765',
+              '- [ ] Internal links look right',
+              '- [ ] CTA at the bottom is appropriate',
+              '',
+              '### To publish in Squarespace after merging',
+              `1. Open the [article file](${articleUrl}) → click **Raw** → copy all`,
+              '2. Squarespace: New Blog Post → add **Markdown block** → paste → Publish',
+            ].join('\n');
+
+            const { data: pr } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Review] Article #${num}: ${title}`,
+              head: branch,
+              base: 'main',
+              body: prBody
+            });
+
+            core.notice(`PR opened: ${pr.html_url}`);
