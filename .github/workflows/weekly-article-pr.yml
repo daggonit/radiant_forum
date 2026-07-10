@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Find next article and open PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v7.0.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -71,13 +71,31 @@ jobs:
               ref: 'heads/main'
             });
 
-            // Create branch
-            await github.rest.git.createRef({
+            // Create branch (silently reuse if a previous run already created it)
+            try {
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `refs/heads/${branch}`,
+                sha: mainRef.object.sha
+              });
+            } catch (err) {
+              if (err.status !== 422) throw err;
+              console.log(`Branch ${branch} already exists — reusing it.`);
+            }
+
+            // Check if a PR for this branch already exists
+            const { data: existingPRs } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: `refs/heads/${branch}`,
-              sha: mainRef.object.sha
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open'
             });
+
+            if (existingPRs.length > 0) {
+              core.notice(`PR already open for this article: ${existingPRs[0].html_url}`);
+              return;
+            }
 
             // Update queue: pending → in-review + today's date
             const today = new Date().toISOString().slice(0, 10);
