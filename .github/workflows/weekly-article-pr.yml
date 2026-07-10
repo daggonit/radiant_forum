@@ -103,13 +103,26 @@ jobs:
               .replace(/\|\s*pending\s*\|/, '| in-review |')
               .replace(/\| in-review \|\s*\|/, `| in-review | ${today} |`);
 
-            // Commit updated queue to the new branch
-            const { data: existingFile } = await github.rest.repos.getContent({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path: queuePath,
-              ref: 'main'
-            });
+            // Get SHA of queue file from the branch (handles retries where branch
+            // already has a partial commit; falls back to main if branch is clean)
+            let queueFileSha;
+            try {
+              const { data: branchFile } = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: queuePath,
+                ref: branch
+              });
+              queueFileSha = branchFile.sha;
+            } catch (e) {
+              const { data: mainFile } = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: queuePath,
+                ref: 'main'
+              });
+              queueFileSha = mainFile.sha;
+            }
 
             await github.rest.repos.createOrUpdateFileContents({
               owner: context.repo.owner,
@@ -117,7 +130,7 @@ jobs:
               path: queuePath,
               message: `Queue: article #${num} sent for review`,
               content: Buffer.from(lines.join('\n')).toString('base64'),
-              sha: existingFile.sha,
+              sha: queueFileSha,
               branch
             });
 
