@@ -18,7 +18,7 @@ Priority order: high-intent commercial articles first, then education, then DIY,
 | # | Title | File | Status | Sent | Approved | Published |
 |---|---|---|---|---|---|---|
 | 1 | What is a Radiant Barrier? | pillar-2-radiant-barrier-education/what-is-a-radiant-barrier.md | in-review | 2026-05-12 | | |
-| 2 | Is a Radiant Barrier Worth It in North Carolina? | pillar-2-radiant-barrier-education/is-radiant-barrier-worth-it-north-carolina.md | pending | | |published |
+| 2 | Is a Radiant Barrier Worth It in North Carolina? | pillar-2-radiant-barrier-education/is-radiant-barrier-worth-it-north-carolina.md | in-review | 2026-07-10 | |published |
 | 3 | Radiant Barrier Cost in North Carolina (2026) | pillar-4-proof-results/radiant-barrier-cost-north-carolina-2026.md | pending | | |published |
 | 4 | How Much Can a Radiant Barrier Lower Your Energy Bill? | pillar-2-radiant-barrier-education/how-much-can-radiant-barrier-lower-energy-bill.md | pending | | |published |
 | 5 | Does Radiant Barrier Actually Work? | pillar-2-radiant-barrier-education/does-radiant-barrier-actually-work.md | pending | | |published |
