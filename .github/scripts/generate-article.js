@@ -108,11 +108,34 @@ async function main() {
   console.log(`Written: ${articlePath}`);
 
   // Mark topic as in-review in the queue
-  const today2 = today;
   lines[pendingIdx] = lines[pendingIdx]
     .replace(/\|\s*pending\s*\|/, '| in-review |')
-    .replace(/\| in-review \|\s*\|/, `| in-review | ${today2} |`);
+    .replace(/\| in-review \|\s*\|/, `| in-review | ${today} |`);
   fs.writeFileSync(queuePath, lines.join('\n'), 'utf8');
+
+  // Write PR body to disk so the workflow can pass it to gh pr create
+  const repo = process.env.GITHUB_REPOSITORY || 'daggonit/radiant_forum';
+  const articleUrl = `https://github.com/${repo}/blob/${branch}/${articlePath}`;
+  const prBody = [
+    `## Article #${num}: ${title}`,
+    '',
+    `Read the full article: ${articleUrl}`,
+    '',
+    'To approve: Merge this PR',
+    'To request changes: Leave a comment, then ask Claude to revise it',
+    '',
+    'Quick checklist:',
+    '- [ ] Headline is clear and accurate',
+    '- [ ] No factual errors',
+    '- [ ] Phone number correct: (919) 971-9765',
+    '- [ ] CTA at the bottom is appropriate',
+    '- [ ] No filler or AI-sounding phrases',
+    '',
+    'To publish in Squarespace after merging:',
+    `1. Open ${articleUrl} - click Raw - copy all`,
+    '2. Squarespace: New Blog Post - add Markdown block - paste - Publish',
+  ].join('\n');
+  fs.writeFileSync('.pr-body.md', prBody, 'utf8');
 
   // Pass outputs to the next workflow step
   const out = process.env.GITHUB_OUTPUT;
