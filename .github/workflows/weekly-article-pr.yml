@@ -16,62 +16,158 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.2.2
 
-      - name: Find next article and open PR
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Anthropic SDK
+        run: npm install @anthropic-ai/sdk --no-save --silent
+
+      - name: Pick topic and generate article
+        id: article
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          node << 'NODESCRIPT'
+          const fs = require('fs');
+          const Anthropic = require('@anthropic-ai/sdk');
+
+          const queuePath = 'topic-queue.md';
+          const queueContent = fs.readFileSync(queuePath, 'utf8');
+          const lines = queueContent.split('\n');
+
+          // Find first pending topic
+          let pendingIdx = -1;
+          for (let i = 0; i < lines.length; i++) {
+            if (/\|\s*pending\s*\|/.test(lines[i])) {
+              pendingIdx = i;
+              break;
+            }
+          }
+
+          if (pendingIdx === -1) {
+            console.log('No pending topics. Queue exhausted.');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'skip=true\n');
+            process.exit(0);
+          }
+
+          // Parse: | # | Title | Category | Status | Sent | Published |
+          const cols = lines[pendingIdx].split('|').map(s => s.trim());
+          const num      = cols[1];
+          const title    = cols[2];
+          const category = cols[3];
+
+          console.log(`Generating article #${num}: ${title} [${category}]`);
+
+          const client = new Anthropic();
+
+          const systemPrompt = `You are a content writer for Barrier Boss by Mallett Made Solutions LLC, a home energy efficiency contractor serving the NC Triangle area.
+
+Business details:
+- Owner: Nicolas Mallett
+- Phone: (919) 971-9765
+- Website: mallettmade.co
+- Contact page: mallettmade.co/contact
+- Service area: Raleigh, Durham, Chapel Hill, Cary, Apex, Morrisville, Wake Forest, Holly Springs, Garner, Fuquay-Varina, Hillsborough, Pittsboro
+
+Services offered:
+- Radiant barrier installation (stapled to roof deck)
+- Attic air sealing (can lights, top plates, penetrations, attic hatch)
+- Blown-in insulation upgrades (fiberglass or cellulose)
+- Duct sealing (mastic compound and Aeroseal pressurized injection)
+- Crawl space encapsulation (vapor barrier + rim joist sealing)
+- Crawl space dehumidifiers
+- Floor insulation below crawl spaces
+- Thermal imaging assessments (FLIR camera)
+- Attic fan evaluation
+
+Target reader: NC homeowner, primarily pre-2010 construction in the Triangle area. They are dealing with high summer energy bills, hot upstairs rooms, humid crawl spaces, cold floors in winter, or high humidity indoors.
+
+Write factual, professional blog articles that:
+- Are 950–1250 words
+- Cite real data from DOE, Energy Star, NREL, or other credible sources with markdown links where available
+- Include NC-specific context (Climate Zone 3A, local construction patterns, Triangle humidity)
+- Mention Duke Energy Smart Saver rebates or the Energy Saver NC program where relevant
+- Use clear H2 and H3 headings with short focused paragraphs
+- Include a markdown table where it helps (costs, comparisons, specs)
+- Include a "Frequently Asked Questions" section (H2) with 3–5 questions
+- End with a short CTA paragraph that mentions Barrier Boss, (919) 971-9765, and mallettmade.co/contact
+- Never use filler phrases ("it's important to note", "in conclusion", "a crucial aspect")
+- Naturally mention related Barrier Boss services where it genuinely helps the reader
+- Do NOT include YAML front matter — start directly with the H1 title`;
+
+          const userPrompt = `Write a blog post for Barrier Boss titled: "${title}"
+
+Category: ${category}
+
+Write it for a Triangle NC homeowner who is researching this topic and deciding whether they need this service and what it costs. Make every sentence earn its place.`;
+
+          const response = await client.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 2048,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userPrompt }]
+          });
+
+          const articleContent = response.content[0].text;
+
+          // File path
+          const today = new Date().toISOString().slice(0, 10);
+          const slug = title
+            .toLowerCase()
+            .replace(/[^a-z0-9 ]/g, '')
+            .trim()
+            .replace(/\s+/g, '-')
+            .slice(0, 60);
+          const articlePath = `articles-generated/${today}-${slug}.md`;
+          const branch = `article/${slug}`;
+
+          // Write article to disk
+          fs.writeFileSync(articlePath, articleContent, 'utf8');
+          console.log(`Written: ${articlePath}`);
+
+          // Update queue: pending → in-review + date
+          lines[pendingIdx] = lines[pendingIdx]
+            .replace(/\|\s*pending\s*\|/, '| in-review |')
+            .replace(/\| in-review \|\s*\|/, `| in-review | ${today} |`);
+          fs.writeFileSync(queuePath, lines.join('\n'), 'utf8');
+
+          // Set step outputs
+          const out = process.env.GITHUB_OUTPUT;
+          fs.appendFileSync(out, `branch=${branch}\n`);
+          fs.appendFileSync(out, `num=${num}\n`);
+          fs.appendFileSync(out, `title=${title}\n`);
+          fs.appendFileSync(out, `article_path=${articlePath}\n`);
+          fs.appendFileSync(out, 'skip=false\n');
+          NODESCRIPT
+
+      - name: Commit files and open PR
+        if: steps.article.outputs.skip != 'true'
         uses: actions/github-script@v7.0.1
+        env:
+          BRANCH: ${{ steps.article.outputs.branch }}
+          NUM: ${{ steps.article.outputs.num }}
+          TITLE: ${{ steps.article.outputs.title }}
+          ARTICLE_PATH: ${{ steps.article.outputs.article_path }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
+            const branch      = process.env.BRANCH;
+            const num         = process.env.NUM;
+            const title       = process.env.TITLE;
+            const articlePath = process.env.ARTICLE_PATH;
+            const queuePath   = 'topic-queue.md';
 
-            // Read publishing queue
-            const queuePath = 'publishing-queue.md';
-            const queueContent = fs.readFileSync(queuePath, 'utf8');
-            const lines = queueContent.split('\n');
-
-            // Find first pending row
-            let pendingIdx = -1;
-            for (let i = 0; i < lines.length; i++) {
-              if (/\|\s*pending\s*\|/.test(lines[i])) {
-                pendingIdx = i;
-                break;
-              }
-            }
-
-            if (pendingIdx === -1) {
-              core.notice('All 24 articles have been queued. Nothing to do.');
-              return;
-            }
-
-            // Parse row: | # | Title | File | Status | Sent | Approved | Published |
-            const cols = lines[pendingIdx].split('|').map(s => s.trim());
-            const num   = cols[1];
-            const title = cols[2];
-            const file  = cols[3];
-
-            if (!title || !file) {
-              core.setFailed(`Could not parse queue row: ${lines[pendingIdx]}`);
-              return;
-            }
-
-            console.log(`Next article: #${num} — ${title}`);
-
-            // Build slug for branch name
-            const slug = title
-              .toLowerCase()
-              .replace(/[^a-z0-9 ]/g, '')
-              .trim()
-              .replace(/\s+/g, '-')
-              .slice(0, 55);
-            const branch = `article/${slug}`;
-
-            // Get main branch SHA
+            // Get main SHA
             const { data: mainRef } = await github.rest.git.getRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: 'heads/main'
             });
 
-            // Create branch (silently reuse if a previous run already created it)
+            // Create branch (silently reuse if already exists from a retry)
             try {
               await github.rest.git.createRef({
                 owner: context.repo.owner,
@@ -81,77 +177,64 @@ jobs:
               });
             } catch (err) {
               if (err.status !== 422) throw err;
-              console.log(`Branch ${branch} already exists — reusing it.`);
+              console.log(`Branch ${branch} already exists — reusing.`);
             }
 
-            // Check if a PR for this branch already exists
+            // Bail if PR already open for this branch
             const { data: existingPRs } = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
               head: `${context.repo.owner}:${branch}`,
               state: 'open'
             });
-
             if (existingPRs.length > 0) {
-              core.notice(`PR already open for this article: ${existingPRs[0].html_url}`);
+              core.notice(`PR already open: ${existingPRs[0].html_url}`);
               return;
             }
 
-            // Update queue: pending → in-review + today's date
-            const today = new Date().toISOString().slice(0, 10);
-            lines[pendingIdx] = lines[pendingIdx]
-              .replace(/\|\s*pending\s*\|/, '| in-review |')
-              .replace(/\| in-review \|\s*\|/, `| in-review | ${today} |`);
-
-            // Get SHA of queue file from the branch (handles retries where branch
-            // already has a partial commit; falls back to main if branch is clean)
-            let queueFileSha;
-            try {
-              const { data: branchFile } = await github.rest.repos.getContent({
+            // Commit a file to the branch, handling both new files and updates
+            async function commitFile(filePath, message) {
+              const content = fs.readFileSync(filePath).toString('base64');
+              let sha;
+              try {
+                const { data } = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: filePath,
+                  ref: branch
+                });
+                sha = data.sha;
+              } catch (_) { /* new file on this branch */ }
+              await github.rest.repos.createOrUpdateFileContents({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                path: queuePath,
-                ref: branch
+                path: filePath,
+                message,
+                content,
+                sha,
+                branch
               });
-              queueFileSha = branchFile.sha;
-            } catch (e) {
-              const { data: mainFile } = await github.rest.repos.getContent({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path: queuePath,
-                ref: 'main'
-              });
-              queueFileSha = mainFile.sha;
             }
 
-            await github.rest.repos.createOrUpdateFileContents({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path: queuePath,
-              message: `Queue: article #${num} sent for review`,
-              content: Buffer.from(lines.join('\n')).toString('base64'),
-              sha: queueFileSha,
-              branch
-            });
+            await commitFile(articlePath, `Article #${num}: ${title}`);
+            await commitFile(queuePath,   `Queue: article #${num} sent for review`);
 
-            // Build article URL for the PR body
-            const articleUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/${file}`;
+            const articleUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/${articlePath}`;
 
-            // Open PR
             const prBody = [
               `## Article #${num}: ${title}`,
               '',
-              `📄 **[Click here to read the full article](${articleUrl})** — GitHub renders the markdown with full formatting (headings, bold, links, tables).`,
+              `📄 **[Click here to read the full article](${articleUrl})** — GitHub renders markdown with full formatting.`,
               '',
               '**To approve:** Merge this PR',
-              '**To request changes:** Leave a comment on this PR',
+              '**To request changes:** Leave a comment, then ask Claude to revise it',
               '',
               '### Quick checklist',
               '- [ ] Headline is clear and accurate',
               '- [ ] No factual errors',
               '- [ ] Phone number correct: (919) 971-9765',
-              '- [ ] Internal links look right',
               '- [ ] CTA at the bottom is appropriate',
+              '- [ ] No filler or AI-sounding phrases',
               '',
               '### To publish in Squarespace after merging',
               `1. Open the [article file](${articleUrl}) → click **Raw** → copy all`,
