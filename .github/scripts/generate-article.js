@@ -86,8 +86,10 @@ async function main() {
     model: 'claude-sonnet-5',
     max_tokens: 16000,
     thinking: {
-      type: 'enabled',
-      budget_tokens: 10000
+      type: 'adaptive'
+    },
+    output_config: {
+      effort: 'high'
     },
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }]
