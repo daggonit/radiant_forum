@@ -1,36 +1,12 @@
 // Called by the weekly-article-pr workflow.
 // Reads topic-queue.md, generates an article via Claude API, writes files to disk,
 // and sets GitHub Actions step outputs for the commit/PR step.
+// When the queue is exhausted, auto-generates 30 new topics before proceeding.
 
 const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
 
 const queuePath = 'topic-queue.md';
-const queueContent = fs.readFileSync(queuePath, 'utf8');
-const lines = queueContent.split('\n');
-
-// Find first pending topic
-let pendingIdx = -1;
-for (let i = 0; i < lines.length; i++) {
-  if (/\|\s*pending\s*\|/.test(lines[i])) {
-    pendingIdx = i;
-    break;
-  }
-}
-
-if (pendingIdx === -1) {
-  console.log('No pending topics. Queue exhausted.');
-  fs.appendFileSync(process.env.GITHUB_OUTPUT, 'skip=true\n');
-  process.exit(0);
-}
-
-// Parse: | # | Title | Category | Status | Sent | Published |
-const cols = lines[pendingIdx].split('|').map(s => s.trim());
-const num      = cols[1];
-const title    = cols[2];
-const category = cols[3];
-
-console.log(`Generating article #${num}: ${title} [${category}]`);
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
 if (!apiKey) {
@@ -39,6 +15,60 @@ if (!apiKey) {
 }
 
 const client = new Anthropic({ apiKey });
+
+function findPending(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    if (/\|\s*pending\s*\|/.test(lines[i])) return i;
+  }
+  return -1;
+}
+
+async function generateNewTopics(lines) {
+  const existingTitles = lines
+    .filter(l => /\|/.test(l) && !/^[\s|]*[-:]+[\s|]*$/.test(l) && !/^\|\s*#\s*\|/.test(l))
+    .map(l => l.split('|').map(s => s.trim())[2])
+    .filter(Boolean);
+
+  let lastNum = 0;
+  for (const line of lines) {
+    const cols = line.split('|').map(s => s.trim());
+    const n = parseInt(cols[1]);
+    if (!isNaN(n) && n > lastNum) lastNum = n;
+  }
+
+  console.log(`Queue exhausted. Generating 30 new topics starting from #${lastNum + 1}...`);
+
+  const prompt = `You are a content strategist for Barrier Boss by Mallett Made Solutions LLC, a home energy efficiency contractor in the NC Triangle area (Raleigh, Durham, Chapel Hill, Cary, Apex).
+
+Services: radiant barrier, attic air sealing, blown-in insulation, duct sealing, crawl space encapsulation, crawl space dehumidifiers, floor insulation, thermal imaging assessments, attic fans.
+
+Generate 30 new blog article topics targeting real NC homeowner search queries. Mix of: cost questions, comparison questions, seasonal questions, symptom-based questions ("why is my upstairs so hot"), how-to questions, local building code questions, before/after questions, and rebate/incentive questions.
+
+Topics already written — do NOT duplicate:
+${existingTitles.map(t => `- ${t}`).join('\n')}
+
+Output ONLY a markdown table with no intro text, no explanation, nothing before or after the table:
+| # | Title | Category | Status | Sent | Published |
+|---|-------|----------|--------|------|-----------|
+| ${lastNum + 1} | First new title | category | pending | | |
+
+Valid category slugs: radiant-barrier, air-sealing, insulation, duct-sealing, crawl-space, floor-insulation, thermal-assessment, attic-fan, home-energy
+
+Output exactly 30 data rows numbered ${lastNum + 1} through ${lastNum + 30}. No other text.`;
+
+  const response = await client.messages.create({
+    model: 'claude-sonnet-5',
+    max_tokens: 4000,
+    messages: [{ role: 'user', content: prompt }]
+  });
+
+  const text = response.content.find(b => b.type === 'text')?.text || '';
+  const newRows = text.split('\n')
+    .filter(l => /^\|/.test(l) && !/^[\s|]*[-:]+[\s|]*$/.test(l) && !/^\|\s*#\s*\|/.test(l));
+
+  console.log(`Generated ${newRows.length} new topics.`);
+  return newRows;
+}
 
 const systemPrompt = `You are a content writer for Barrier Boss by Mallett Made Solutions LLC, a home energy efficiency contractor serving the NC Triangle area.
 
@@ -75,13 +105,38 @@ Write factual, professional blog articles that:
 - Naturally mention related Barrier Boss services where it genuinely helps the reader
 - Do NOT include YAML front matter - start directly with the H1 title`;
 
-const userPrompt = `Write a blog post for Barrier Boss titled: "${title}"
+async function main() {
+  let lines = fs.readFileSync(queuePath, 'utf8').split('\n');
+  let pendingIdx = findPending(lines);
+
+  if (pendingIdx === -1) {
+    const newRows = await generateNewTopics(lines);
+    const updated = lines.join('\n').trimEnd() + '\n' + newRows.join('\n') + '\n';
+    fs.writeFileSync(queuePath, updated, 'utf8');
+    lines = updated.split('\n');
+    pendingIdx = findPending(lines);
+
+    if (pendingIdx === -1) {
+      console.error('Failed to generate usable new topics.');
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, 'skip=true\n');
+      process.exit(0);
+    }
+  }
+
+  // Parse: | # | Title | Category | Status | Sent | Published |
+  const cols = lines[pendingIdx].split('|').map(s => s.trim());
+  const num      = cols[1];
+  const title    = cols[2];
+  const category = cols[3];
+
+  console.log(`Generating article #${num}: ${title} [${category}]`);
+
+  const userPrompt = `Write a blog post for Barrier Boss titled: "${title}"
 
 Category: ${category}
 
 Write it for a Triangle NC homeowner who is researching this topic and deciding whether they need this service and what it costs. Make every sentence earn its place.`;
 
-async function main() {
   const response = await client.messages.create({
     model: 'claude-sonnet-5',
     max_tokens: 16000,
@@ -95,12 +150,10 @@ async function main() {
     messages: [{ role: 'user', content: userPrompt }]
   });
 
-  // Thinking responses return multiple content blocks; grab only the text block
   const textBlock = response.content.find(b => b.type === 'text');
   if (!textBlock) throw new Error('No text block in Claude response');
   const articleContent = textBlock.text;
 
-  // Build file path and branch name from title slug
   const today = new Date().toISOString().slice(0, 10);
   const slug = title
     .toLowerCase()
@@ -111,17 +164,14 @@ async function main() {
   const articlePath = `articles-generated/${today}-${slug}.md`;
   const branch = `article/${slug}`;
 
-  // Write article to disk
   fs.writeFileSync(articlePath, articleContent, 'utf8');
   console.log(`Written: ${articlePath}`);
 
-  // Mark topic as in-review in the queue
   lines[pendingIdx] = lines[pendingIdx]
     .replace(/\|\s*pending\s*\|/, '| in-review |')
     .replace(/\| in-review \|\s*\|/, `| in-review | ${today} |`);
   fs.writeFileSync(queuePath, lines.join('\n'), 'utf8');
 
-  // Write PR body to disk so the workflow can pass it to gh pr create
   const repo = process.env.GITHUB_REPOSITORY || 'daggonit/radiant_forum';
   const articleUrl = `https://github.com/${repo}/blob/${branch}/${articlePath}`;
   const prBody = [
@@ -145,7 +195,6 @@ async function main() {
   ].join('\n');
   fs.writeFileSync('.pr-body.md', prBody, 'utf8');
 
-  // Pass outputs to the next workflow step
   const out = process.env.GITHUB_OUTPUT;
   fs.appendFileSync(out, `branch=${branch}\n`);
   fs.appendFileSync(out, `num=${num}\n`);
