@@ -104,13 +104,20 @@ Category: ${category}
 Write it for a Triangle NC homeowner who is researching this topic and deciding whether they need this service and what it costs. Make every sentence earn its place.`;
 
           const response = await client.messages.create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 2048,
+            model: 'claude-sonnet-5',
+            max_tokens: 16000,
+            thinking: {
+              type: 'enabled',
+              budget_tokens: 10000
+            },
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }]
           });
 
-          const articleContent = response.content[0].text;
+          // Thinking responses return multiple content blocks; grab only the text
+          const textBlock = response.content.find(b => b.type === 'text');
+          if (!textBlock) throw new Error('No text block in response');
+          const articleContent = textBlock.text;
 
           // File path
           const today = new Date().toISOString().slice(0, 10);
