@@ -28,110 +28,28 @@ jobs:
         id: article
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_OUTPUT: ${{ env.GITHUB_OUTPUT }}
         run: node .github/scripts/generate-article.js
 
-      - name: Commit files and open PR
+      - name: Commit and open PR
         if: steps.article.outputs.skip != 'true'
-        uses: actions/github-script@v7.0.1
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ steps.article.outputs.branch }}
           NUM: ${{ steps.article.outputs.num }}
           TITLE: ${{ steps.article.outputs.title }}
           ARTICLE_PATH: ${{ steps.article.outputs.article_path }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            const branch      = process.env.BRANCH;
-            const num         = process.env.NUM;
-            const title       = process.env.TITLE;
-            const articlePath = process.env.ARTICLE_PATH;
-            const queuePath   = 'topic-queue.md';
-
-            const { data: mainRef } = await github.rest.git.getRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: 'heads/main'
-            });
-
-            try {
-              await github.rest.git.createRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: `refs/heads/${branch}`,
-                sha: mainRef.object.sha
-              });
-            } catch (err) {
-              if (err.status !== 422) throw err;
-              console.log(`Branch ${branch} already exists — reusing.`);
-            }
-
-            const { data: existingPRs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              head: `${context.repo.owner}:${branch}`,
-              state: 'open'
-            });
-            if (existingPRs.length > 0) {
-              core.notice(`PR already open: ${existingPRs[0].html_url}`);
-              return;
-            }
-
-            async function commitFile(filePath, message) {
-              const content = fs.readFileSync(filePath).toString('base64');
-              let sha;
-              try {
-                const { data } = await github.rest.repos.getContent({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  path: filePath,
-                  ref: branch
-                });
-                sha = data.sha;
-              } catch (_) {}
-              await github.rest.repos.createOrUpdateFileContents({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                path: filePath,
-                message,
-                content,
-                sha,
-                branch
-              });
-            }
-
-            await commitFile(articlePath, `Article #${num}: ${title}`);
-            await commitFile(queuePath,   `Queue: article #${num} sent for review`);
-
-            const articleUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${branch}/${articlePath}`;
-
-            const prBody = [
-              `## Article #${num}: ${title}`,
-              '',
-              `📄 **[Click here to read the full article](${articleUrl})** — GitHub renders markdown with full formatting.`,
-              '',
-              '**To approve:** Merge this PR',
-              '**To request changes:** Leave a comment, then ask Claude to revise it',
-              '',
-              '### Quick checklist',
-              '- [ ] Headline is clear and accurate',
-              '- [ ] No factual errors',
-              '- [ ] Phone number correct: (919) 971-9765',
-              '- [ ] CTA at the bottom is appropriate',
-              '- [ ] No filler or AI-sounding phrases',
-              '',
-              '### To publish in Squarespace after merging',
-              `1. Open the [article file](${articleUrl}) → click **Raw** → copy all`,
-              '2. Squarespace: New Blog Post → add **Markdown block** → paste → Publish',
-            ].join('\n');
-
-            const { data: pr } = await github.rest.pulls.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `[Review] Article #${num}: ${title}`,
-              head: branch,
-              base: 'main',
-              body: prBody
-            });
-
-            core.notice(`PR opened: ${pr.html_url}`);
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add "$ARTICLE_PATH" topic-queue.md
+          git diff --staged --quiet || git commit -m "Article #$NUM: $TITLE"
+          git push origin "$BRANCH" --force
+          EXISTING=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url')
+          if [ -n "$EXISTING" ]; then
+            echo "PR already open: $EXISTING"
+          else
+            gh pr create --title "[Review] Article #$NUM: $TITLE" --body-file .pr-body.md --base main
+          fi
