@@ -32,7 +32,13 @@ const category = cols[3];
 
 console.log(`Generating article #${num}: ${title} [${category}]`);
 
-const client = new Anthropic();
+const apiKey = process.env.ANTHROPIC_API_KEY;
+if (!apiKey) {
+  console.error('ANTHROPIC_API_KEY is not set. Add it as a GitHub Actions secret named ANTHROPIC_API_KEY.');
+  process.exit(1);
+}
+
+const client = new Anthropic({ apiKey });
 
 const systemPrompt = `You are a content writer for Barrier Boss by Mallett Made Solutions LLC, a home energy efficiency contractor serving the NC Triangle area.
 
