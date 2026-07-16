@@ -28,8 +28,6 @@ jobs:
         id: article
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_OUTPUT: ${{ env.GITHUB_OUTPUT }}
         run: node .github/scripts/generate-article.js
 
       - name: Commit and open PR
