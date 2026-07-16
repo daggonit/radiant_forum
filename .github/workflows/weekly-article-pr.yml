@@ -2,8 +2,8 @@ name: Weekly Article PR
 
 on:
   schedule:
-    - cron: '3 12 * * 2'  # Every Tuesday 8:03 AM Eastern (12:03 UTC during EDT)
-  workflow_dispatch:       # Manual trigger via Actions tab
+    - cron: '3 12 * * 2,4'  # Tuesday and Thursday 8:03 AM Eastern (12:03 UTC during EDT)
+  workflow_dispatch:          # Manual trigger via Actions tab
 
 permissions:
   contents: write
