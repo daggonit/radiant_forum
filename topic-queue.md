@@ -14,7 +14,7 @@ Each Tuesday, the GitHub Action picks the next `pending` topic, generates a full
 
 | # | Title | Category | Status | Sent | Published |
 |---|---|---|---|---|---|
-| 1 | What Is Crawl Space Encapsulation? | crawl-space | pending | | |
+| 1 | What Is Crawl Space Encapsulation? | crawl-space | in-review | 2026-07-23 | |
 | 2 | Why Is My Crawl Space So Humid? | crawl-space | pending | | |
 | 3 | Do I Need a Crawl Space Dehumidifier in NC? | crawl-space | pending | | |
 | 4 | Signs Your NC Home Has a Crawl Space Moisture Problem | crawl-space | pending | | |
